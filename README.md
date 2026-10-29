@@ -1,6 +1,6 @@
 # 知考 · 在线考试系统
 
-一个前后端分离的在线考试网站。后端使用 Python Flask，数据存储使用 SQLite3，前端使用原生 HTML/CSS/JavaScript，无需 Node.js 或打包构建即可运行。支持 Docker 双端口部署，并提供 MCP 协议接口用于外部工具集成。
+一个前后端一体的在线考试网站。后端使用 Python Flask，数据存储使用 SQLite3，前端使用原生 HTML/CSS/JavaScript，无需 Node.js 或打包构建即可运行。前端静态资源由 Flask 同源托管，前后端统一使用一个端口；支持 Docker 单端口部署，并提供 MCP 协议接口用于外部工具集成。
 
 ## 功能
 
@@ -26,7 +26,7 @@
 
 ### 部署与集成
 
-- Docker：提供前后端双端口镜像、构建脚本和启动入口，支持 SQLite 数据卷持久化
+- Docker：提供前后端一体化单端口镜像、构建脚本和启动入口，支持 SQLite 数据卷持久化
 - MCP：提供 Streamable HTTP JSON-RPC 服务，支持管理员登录、查询科目与题库、新增/修改/删除科目和题目，并可通过题目接口调整所属科目
 
 ## 技术结构
@@ -54,19 +54,19 @@
 │   ├── index.html           # 单页应用入口
 │   ├── css/styles.css       # 响应式界面样式
 │   └── js/
-│       ├── config.js        # 后端接口地址
+│       ├── config.js        # 同源后端接口地址
 │       ├── api.js           # API 请求与 Token 管理
 │       └── app.js           # 路由、页面渲染与交互
 ├── data/                    # SQLite 数据文件目录
-├── Dockerfile               # 前后端双端口镜像构建文件
-├── docker-entrypoint.sh     # 容器启动入口，读取端口并启动前后端
+├── Dockerfile               # 前后端一体化单端口镜像构建文件
+├── docker-entrypoint.sh     # 容器启动入口，读取端口并启动服务
 ├── build-docker.sh          # Docker 镜像构建脚本
 ├── run.py                   # 后端启动入口
 ├── start.sh                 # 一键启动前后端
 └── requirements.txt
 ```
 
-前后端完全分离：前端是独立静态站点，后端只提供 `/api/*` JSON 接口。默认端口为前端 `8000`、后端 `5001`。
+前端静态资源由 Flask 直接托管，浏览器访问的页面和 `/api/*` JSON 接口使用同一个端口，默认端口为 `5001`。
 
 ## 快速开始
 
@@ -77,7 +77,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-打开浏览器访问：<http://127.0.0.1:8000>
+打开浏览器访问：<http://127.0.0.1:5001>
 
 初始管理员账号：
 
@@ -88,42 +88,40 @@ chmod +x start.sh
 
 首次启动会自动创建 SQLite 数据库 `data/exam.db`，并写入两套演示科目题库。登录后可在“用户管理”中修改管理员密码。
 
-也可以手动分别启动：
+也可以不通过脚本手动启动：
 
 ```bash
-# 终端 1：后端
+# 默认监听 127.0.0.1:5001，同时提供前端页面和 /api 接口
 python3 run.py
 
-# 终端 2：前端
-cd frontend
-python3 -m http.server 8000 --bind 127.0.0.1
+# 指定端口
+EXAM_PORT=8080 python3 run.py
 ```
 
 ## Docker 运行
 
-要求：Docker 20.10+。镜像会同时启动前端静态站点和后端 API，分别监听前端、后端两个端口，默认分别为 `8000` 和 `5001`。
+要求：Docker 20.10+。镜像内的 Flask 服务同时托管前端静态资源和后端 API，只暴露一个端口，默认 `5001`。
 
 ### 使用构建脚本构建
 
 ```bash
 chmod +x build-docker.sh
 
-# 使用默认端口 8000 / 5001
+# 使用默认端口 5001
 ./build-docker.sh
 
-# 位置参数：前端端口 后端端口
-./build-docker.sh 8080 5002
+# 位置参数：服务端口
+./build-docker.sh 8080
 
 # 命名参数：指定端口、镜像名和标签
-./build-docker.sh -f 8080 -b 5002 -i exam-system -t v1.0.0
+./build-docker.sh -p 8080 -i exam-system -t v1.0.0
 ```
 
 ### 直接使用 docker build
 
 ```bash
 docker build \
-  --build-arg FRONTEND_PORT=8000 \
-  --build-arg BACKEND_PORT=5001 \
+  --build-arg PORT=5001 \
   -t exam-system:latest .
 ```
 
@@ -131,7 +129,6 @@ docker build \
 
 ```bash
 docker run -d --name exam-system \
-  -p 8000:8000 \
   -p 5001:5001 \
   -e EXAM_SECRET_KEY='请替换为随机密钥' \
   -e EXAM_ADMIN_PASSWORD='请替换为管理员密码' \
@@ -139,14 +136,16 @@ docker run -d --name exam-system \
   exam-system:latest
 ```
 
-启动后访问：<http://127.0.0.1:8000>，后端接口地址为 <http://127.0.0.1:5001/api>。
+启动后访问 <http://127.0.0.1:5001> 即可打开前端页面；接口和 MCP 服务同样使用该端口：
 
-如果使用 `8080` / `5002` 构建镜像，启动时映射对应端口即可：
+- API：<http://127.0.0.1:5001/api>
+- MCP：<http://127.0.0.1:5001/api/mcp>
+
+如果使用 `8080` 构建镜像，启动时映射对应端口即可：
 
 ```bash
 docker run -d --name exam-system \
   -p 8080:8080 \
-  -p 5002:5002 \
   -e EXAM_SECRET_KEY='请替换为随机密钥' \
   -v exam-system-data:/app/data \
   exam-system:latest
@@ -155,8 +154,7 @@ docker run -d --name exam-system \
 说明：
 
 - SQLite 数据库保存在容器内 `/app/data/exam.db`，通过 `-v exam-system-data:/app/data` 持久化。
-- 前端通过页面主机名和后端端口访问 API，请保持宿主机与容器端口一致，例如 `-p 8080:8080`。
-- 通过局域网 IP 访问前端时，需要把该地址加入 CORS，例如 `-e EXAM_CORS_ORIGINS=http://192.168.1.10:8000`。
+- 前端和 API 同源，无需额外配置 CORS。
 - 查看日志：`docker logs -f exam-system`；停止服务：`docker stop exam-system`。
 
 ## 配置项
@@ -171,14 +169,15 @@ docker run -d --name exam-system \
 | `EXAM_ADMIN_USERNAME` | `admin` | 首次初始化时创建的管理员用户名 |
 | `EXAM_ADMIN_PASSWORD` | `admin123` | 首次初始化时创建的管理员密码 |
 | `EXAM_SEED_DEMO` | `1` | 是否写入演示科目题库，设为 `0` 关闭 |
-| `EXAM_CORS_ORIGINS` | 本地 `8000/5173` 端口 | 允许跨域的前端地址，逗号分隔 |
-| `EXAM_HOST` / `EXAM_PORT` | `127.0.0.1` / `5001` | 后端监听地址和端口 |
+| `EXAM_CORS_ORIGINS` | 本地开发地址 | 允许跨域访问 API 的地址，同源部署通常无需配置 |
+| `EXAM_HOST` / `EXAM_PORT` | `127.0.0.1` / `5001` | 服务监听地址和端口 |
+| `EXAM_FRONTEND_DIR` | `frontend/` | 前端静态资源目录 |
 
 管理员账号和演示数据只会在数据库为空时初始化。修改环境变量后不会覆盖已有账号，请通过后台或数据库处理。
 
-前端后端地址位于 `frontend/js/config.js`，默认自动使用当前页面主机的 `5001` 端口。部署到其他域名时可修改该文件，或在页面加载前设置 `window.EXAM_API_BASE`。
+前端 API 地址位于 `frontend/js/config.js`，默认使用同源 `/api`。需要连接独立后端时，可在页面加载前设置 `window.EXAM_API_BASE`。
 
-Docker 镜像额外支持 `FRONTEND_PORT`、`BACKEND_PORT` 环境变量（默认 `8000`、`5001`），容器启动时会根据它们生成前端 API 地址并启动两个服务；也可以通过 `docker build --build-arg` 设置默认端口。
+Docker 镜像支持 `PORT` 或 `EXAM_PORT` 环境变量（默认 `5001`）控制唯一服务端口，也可以通过 `docker build --build-arg PORT=8080` 设置镜像默认端口。
 
 ## 运行测试
 
@@ -314,10 +313,10 @@ curl -s http://127.0.0.1:5001/api/mcp \
 
 ## 生产部署建议
 
-开发环境的一键启动使用 Flask 内置服务器和 Python 静态文件服务器。生产环境建议：
+开发环境的一键启动使用 Flask 内置服务器，同时托管前端页面和 API。生产环境建议：
 
 - 使用 Gunicorn/uWSGI 运行 Flask 应用；
-- 使用 Nginx 托管 `frontend/` 静态文件并反向代理 `/api`；
+- 使用 Nginx 反向代理同一个服务端口，或由 Nginx 直接托管 `frontend/` 并转发 `/api`；
 - 设置强随机的 `EXAM_SECRET_KEY`、修改默认管理员密码；
-- 限制 `EXAM_CORS_ORIGINS` 为实际前端域名；
+- 同源部署时无需配置 `EXAM_CORS_ORIGINS`，跨域部署时再限制为实际前端域名；
 - 定期备份 `data/exam.db`。

@@ -147,6 +147,24 @@ def test_health(client):
     assert response.get_json()["status"] == "ok"
 
 
+def test_frontend_is_served_by_backend(client):
+    index = client.get("/")
+    assert index.status_code == 200
+    assert "text/html" in index.content_type
+    assert "知考" in index.get_data(as_text=True)
+
+    styles = client.get("/css/styles.css")
+    assert styles.status_code == 200
+    assert "text/css" in styles.content_type
+
+    missing_asset = client.get("/js/missing.js")
+    assert missing_asset.status_code == 404
+
+    missing_api = client.get("/api/not-found")
+    assert missing_api.status_code == 404
+    assert missing_api.is_json
+
+
 def test_register_login_and_me(client):
     data = register_user(client)
     assert data["user"]["username"] == "learner"

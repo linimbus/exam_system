@@ -1,14 +1,12 @@
 FROM python:3.12-slim
 
-ARG FRONTEND_PORT=8000
-ARG BACKEND_PORT=5001
+ARG PORT=5001
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    FRONTEND_PORT=${FRONTEND_PORT} \
-    BACKEND_PORT=${BACKEND_PORT} \
+    PORT=${PORT} \
     EXAM_HOST=0.0.0.0 \
-    EXAM_PORT=${BACKEND_PORT} \
+    EXAM_PORT=${PORT} \
     EXAM_DATABASE=/app/data/exam.db \
     FLASK_DEBUG=0
 
@@ -27,6 +25,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
 
 VOLUME ["/app/data"]
 
-EXPOSE ${FRONTEND_PORT} ${BACKEND_PORT}
+EXPOSE ${PORT}
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
