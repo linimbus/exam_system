@@ -21,6 +21,13 @@ def validate_password(value):
     return password
 
 
+def validate_nickname(value):
+    nickname = str(value or "").strip()
+    if len(nickname) > 32:
+        raise ApiError("昵称不能超过 32 个字符", 422)
+    return nickname
+
+
 def validate_subject_name(value):
     name = str(value or "").strip()
     if not 1 <= len(name) <= 50:

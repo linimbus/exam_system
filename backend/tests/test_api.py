@@ -145,6 +145,41 @@ def test_register_login_and_me(client):
     assert invalid.status_code == 422
 
 
+def test_update_profile_nickname_and_password(client):
+    data = register_user(client)
+    token = data["token"]
+
+    updated = client.patch(
+        "/api/auth/profile", headers=auth(token), json={"nickname": "小明"}
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["user"]["nickname"] == "小明"
+
+    wrong = client.patch(
+        "/api/auth/profile",
+        headers=auth(token),
+        json={"current_password": "badpass", "new_password": "newsecret123"},
+    )
+    assert wrong.status_code == 400
+
+    changed = client.patch(
+        "/api/auth/profile",
+        headers=auth(token),
+        json={"current_password": "secret123", "new_password": "newsecret123"},
+    )
+    assert changed.status_code == 200
+
+    old_login = client.post(
+        "/api/auth/login", json={"username": "learner", "password": "secret123"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = login(client, "learner", "newsecret123")
+    me = client.get("/api/auth/me", headers=auth(new_login["token"]))
+    assert me.status_code == 200
+    assert me.get_json()["user"]["nickname"] == "小明"
+
+
 def test_admin_permissions_and_user_management(client):
     user = register_user(client)
     forbidden = client.get("/api/admin/users", headers=auth(user["token"]))

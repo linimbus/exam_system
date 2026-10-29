@@ -44,7 +44,7 @@ def load_user_from_request():
         raise ApiError("无效的登录凭证", 401)
 
     user = get_db().execute(
-        "SELECT id, username, role, is_active, created_at FROM users WHERE id = ?",
+        "SELECT id, username, nickname, role, is_active, created_at FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
     if not user:

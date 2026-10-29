@@ -180,6 +180,11 @@
         return value ? value.slice(0, value === value.toLowerCase() ? 2 : 1).toUpperCase() : "?";
     }
 
+    function displayName(user) {
+        if (!user) return "";
+        return String(user.nickname || "").trim() || user.username;
+    }
+
     function greeting() {
         const hour = new Date().getHours();
         if (hour < 6) return "夜深了";
@@ -493,6 +498,7 @@
         const meta = ROUTE_META[route.name] || { title: "知考", subtitle: "" };
         const isAdmin = state.user && state.user.role === "admin";
         const active = route.name;
+        const userName = displayName(state.user);
         document.title = `${meta.title} · 知考在线考试系统`;
 
         appEl.innerHTML = `
@@ -522,13 +528,19 @@
                     }
                 </div>
                 <div class="sidebar-user">
-                    <div class="user-line">
-                        <span class="avatar">${esc(initials(state.user.username))}</span>
-                        <div class="user-meta">
-                            <strong>${esc(state.user.username)}</strong>
-                            <span>${isAdmin ? "系统管理员" : "普通学员"}</span>
+                    <div class="user-menu">
+                        <button class="user-line user-menu-trigger" type="button" data-user-menu-toggle aria-haspopup="menu" aria-expanded="false" title="个人设置">
+                            <span class="avatar" data-user-avatar>${esc(initials(userName))}</span>
+                            <div class="user-meta">
+                                <strong data-user-name>${esc(userName)}</strong>
+                                <span>${isAdmin ? "系统管理员" : "普通学员"}</span>
+                            </div>
+                            ${icon("chevronRight", 15)}
+                        </button>
+                        <div class="user-dropdown" role="menu">
+                            <button class="dropdown-item" type="button" role="menuitem" data-open-settings>${icon("user", 16)}<span>个人设置</span></button>
+                            <button class="dropdown-item" type="button" role="menuitem" data-logout>${icon("logout", 16)}<span>退出登录</span></button>
                         </div>
-                        <button class="icon-button" type="button" data-logout title="退出登录" aria-label="退出登录">${icon("logout", 17)}</button>
                     </div>
                 </div>
             </aside>
@@ -542,9 +554,15 @@
                     </div>
                     <div class="topbar-right">
                         <span class="role-chip">${isAdmin ? "管理员" : "学员"}</span>
-                        <div class="topbar-user">
-                            <span class="avatar sm">${esc(initials(state.user.username))}</span>
-                            <span>${esc(state.user.username)}</span>
+                        <div class="user-menu topbar-user-menu">
+                            <button class="topbar-user user-menu-trigger" type="button" data-user-menu-toggle aria-haspopup="menu" aria-expanded="false" title="个人设置">
+                                <span class="avatar sm" data-user-avatar>${esc(initials(userName))}</span>
+                                <span data-user-name>${esc(userName)}</span>
+                            </button>
+                            <div class="user-dropdown align-right" role="menu">
+                                <button class="dropdown-item" type="button" role="menuitem" data-open-settings>${icon("user", 16)}<span>个人设置</span></button>
+                                <button class="dropdown-item" type="button" role="menuitem" data-logout>${icon("logout", 16)}<span>退出登录</span></button>
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -644,7 +662,7 @@
             <section class="hero-card">
                 <div class="hero-inner">
                     <div>
-                        <div class="hero-eyebrow">${esc(greeting())}，${esc(state.user.username)}</div>
+                        <div class="hero-eyebrow">${esc(greeting())}，<span data-user-name>${esc(displayName(state.user))}</span></div>
                         <h2>保持节奏，<span>稳步提升</span></h2>
                         <p>从一次随机练习开始，系统会自动记录成绩、错题与薄弱知识点，让每一次复习更有方向。</p>
                         <div class="hero-actions">
@@ -962,6 +980,132 @@
 
     // ---------------------------------------------------------------- events
 
+    function closeUserMenus() {
+        document.querySelectorAll(".user-menu.open").forEach((menu) => {
+            menu.classList.remove("open");
+            const trigger = menu.querySelector("[data-user-menu-toggle]");
+            if (trigger) trigger.setAttribute("aria-expanded", "false");
+        });
+    }
+
+    function refreshUserChrome() {
+        if (!state.user) return;
+        const name = displayName(state.user);
+        document.querySelectorAll("[data-user-name]").forEach((el) => {
+            el.textContent = name;
+        });
+        document.querySelectorAll("[data-user-avatar]").forEach((el) => {
+            el.textContent = initials(name);
+        });
+    }
+
+    function openProfileModal() {
+        const user = state.user;
+        const name = displayName(user);
+        openModal({
+            title: "个人设置",
+            subtitle: "修改昵称或登录密码",
+            body: `
+                <form class="modal-form" id="profile-form" novalidate>
+                    <div class="profile-summary">
+                        <span class="avatar">${esc(initials(name))}</span>
+                        <div>
+                            <strong>${esc(name)}</strong>
+                            <span>登录账号：${esc(user.username)}</span>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-nickname">昵称 <span class="field-hint">最多 32 个字符，留空显示用户名</span></label>
+                        <input class="input" id="profile-nickname" name="nickname" maxlength="32" value="${esc(user.nickname || "")}" placeholder="${esc(user.username)}">
+                    </div>
+                    <div class="form-divider"><span>修改密码</span></div>
+                    <p class="field-hint">如不需要修改密码，以下三项请留空。</p>
+                    <div class="form-field">
+                        <label for="profile-current-password">当前密码</label>
+                        <input class="input" id="profile-current-password" name="current_password" type="password" autocomplete="current-password" maxlength="64" placeholder="请输入当前密码">
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-new-password">新密码</label>
+                        <input class="input" id="profile-new-password" name="new_password" type="password" autocomplete="new-password" maxlength="64" placeholder="6-64 位新密码">
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-confirm-password">确认新密码</label>
+                        <input class="input" id="profile-confirm-password" name="confirm_password" type="password" autocomplete="new-password" maxlength="64" placeholder="请再次输入新密码">
+                    </div>
+                    <div class="form-message" id="profile-form-error"></div>
+                </form>`,
+            footer: `
+                <button class="btn btn-secondary" data-modal-close>取消</button>
+                <button class="btn btn-primary" type="submit" form="profile-form" id="save-profile-btn">保存修改</button>`,
+        });
+
+        const form = document.getElementById("profile-form");
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const errorBox = document.getElementById("profile-form-error");
+            const button = document.getElementById("save-profile-btn");
+            const nickname = document
+                .getElementById("profile-nickname")
+                .value.trim();
+            const currentPassword = document.getElementById(
+                "profile-current-password"
+            ).value;
+            const newPassword =
+                document.getElementById("profile-new-password").value;
+            const confirmPassword = document.getElementById(
+                "profile-confirm-password"
+            ).value;
+            errorBox.textContent = "";
+
+            if (nickname.length > 32) {
+                errorBox.textContent = "昵称不能超过 32 个字符。";
+                return;
+            }
+
+            const changingPassword = Boolean(
+                currentPassword || newPassword || confirmPassword
+            );
+            if (changingPassword) {
+                if (!currentPassword) {
+                    errorBox.textContent = "请输入当前密码。";
+                    return;
+                }
+                if (!newPassword) {
+                    errorBox.textContent = "请输入新密码。";
+                    return;
+                }
+                if (newPassword.length < 6 || newPassword.length > 64) {
+                    errorBox.textContent = "新密码长度需为 6-64 位。";
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    errorBox.textContent = "两次输入的新密码不一致。";
+                    return;
+                }
+            }
+
+            const payload = { nickname };
+            if (changingPassword) {
+                payload.current_password = currentPassword;
+                payload.new_password = newPassword;
+            }
+
+            button.disabled = true;
+            button.classList.add("is-loading");
+            try {
+                const result = await api.patch("/auth/profile", payload);
+                state.user = result.user;
+                closeModal();
+                refreshUserChrome();
+                toast("个人设置已更新");
+            } catch (error) {
+                errorBox.textContent = error.message;
+                button.disabled = false;
+                button.classList.remove("is-loading");
+            }
+        });
+    }
+
     function logout() {
         api.clearToken();
         state.user = null;
@@ -992,7 +1136,27 @@
             if (shell) shell.classList.remove("sidebar-open");
             return;
         }
+        const menuToggle = event.target.closest("[data-user-menu-toggle]");
+        if (menuToggle) {
+            const menu = menuToggle.closest(".user-menu");
+            const wasOpen = menu.classList.contains("open");
+            closeUserMenus();
+            if (!wasOpen) {
+                menu.classList.add("open");
+                menuToggle.setAttribute("aria-expanded", "true");
+            }
+            return;
+        }
+        if (event.target.closest("[data-open-settings]")) {
+            closeUserMenus();
+            openProfileModal();
+            return;
+        }
+        if (!event.target.closest(".user-menu")) {
+            closeUserMenus();
+        }
         if (event.target.closest("[data-logout]")) {
+            closeUserMenus();
             logout();
             return;
         }
@@ -1017,6 +1181,10 @@
         if (event.key === "Escape") {
             if (modalRoot.children.length) {
                 closeModal();
+                return;
+            }
+            if (document.querySelector(".user-menu.open")) {
+                closeUserMenus();
                 return;
             }
             const shell = document.querySelector(".app-shell");

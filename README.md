@@ -48,6 +48,9 @@
 │       ├── api.js           # API 请求与 Token 管理
 │       └── app.js           # 路由、页面渲染与交互
 ├── data/                    # SQLite 数据文件目录
+├── Dockerfile               # 前后端双端口镜像构建文件
+├── docker-entrypoint.sh     # 容器启动入口，读取端口并启动前后端
+├── build-docker.sh          # Docker 镜像构建脚本
 ├── run.py                   # 后端启动入口
 ├── start.sh                 # 一键启动前后端
 └── requirements.txt
@@ -86,6 +89,66 @@ cd frontend
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
+## Docker 运行
+
+要求：Docker 20.10+。镜像会同时启动前端静态站点和后端 API，分别监听前端、后端两个端口，默认分别为 `8000` 和 `5001`。
+
+### 使用构建脚本构建
+
+```bash
+chmod +x build-docker.sh
+
+# 使用默认端口 8000 / 5001
+./build-docker.sh
+
+# 位置参数：前端端口 后端端口
+./build-docker.sh 8080 5002
+
+# 命名参数：指定端口、镜像名和标签
+./build-docker.sh -f 8080 -b 5002 -i exam-system -t v1.0.0
+```
+
+### 直接使用 docker build
+
+```bash
+docker build \
+  --build-arg FRONTEND_PORT=8000 \
+  --build-arg BACKEND_PORT=5001 \
+  -t exam-system:latest .
+```
+
+### docker run 启动
+
+```bash
+docker run -d --name exam-system \
+  -p 8000:8000 \
+  -p 5001:5001 \
+  -e EXAM_SECRET_KEY='请替换为随机密钥' \
+  -e EXAM_ADMIN_PASSWORD='请替换为管理员密码' \
+  -v exam-system-data:/app/data \
+  exam-system:latest
+```
+
+启动后访问：<http://127.0.0.1:8000>，后端接口地址为 <http://127.0.0.1:5001/api>。
+
+如果使用 `8080` / `5002` 构建镜像，启动时映射对应端口即可：
+
+```bash
+docker run -d --name exam-system \
+  -p 8080:8080 \
+  -p 5002:5002 \
+  -e EXAM_SECRET_KEY='请替换为随机密钥' \
+  -v exam-system-data:/app/data \
+  exam-system:latest
+```
+
+说明：
+
+- SQLite 数据库保存在容器内 `/app/data/exam.db`，通过 `-v exam-system-data:/app/data` 持久化。
+- 前端通过页面主机名和后端端口访问 API，请保持宿主机与容器端口一致，例如 `-p 8080:8080`。
+- 通过局域网 IP 访问前端时，需要把该地址加入 CORS，例如 `-e EXAM_CORS_ORIGINS=http://192.168.1.10:8000`。
+- 查看日志：`docker logs -f exam-system`；停止服务：`docker stop exam-system`。
+
 ## 配置项
 
 通过环境变量配置后端：
@@ -104,6 +167,8 @@ python3 -m http.server 8000 --bind 127.0.0.1
 管理员账号和演示数据只会在数据库为空时初始化。修改环境变量后不会覆盖已有账号，请通过后台或数据库处理。
 
 前端后端地址位于 `frontend/js/config.js`，默认自动使用当前页面主机的 `5001` 端口。部署到其他域名时可修改该文件，或在页面加载前设置 `window.EXAM_API_BASE`。
+
+Docker 镜像额外支持 `FRONTEND_PORT`、`BACKEND_PORT` 环境变量（默认 `8000`、`5001`），容器启动时会根据它们生成前端 API 地址并启动两个服务；也可以通过 `docker build --build-arg` 设置默认端口。
 
 ## 运行测试
 
