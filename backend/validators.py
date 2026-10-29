@@ -28,6 +28,20 @@ def validate_nickname(value):
     return nickname
 
 
+def validate_site_name(value):
+    name = str(value or "").strip()
+    if not 1 <= len(name) <= 50:
+        raise ApiError("网站系统名称需为 1-50 个字符", 422)
+    return name
+
+
+def validate_site_description(value):
+    description = str(value or "").strip()
+    if len(description) > 1000:
+        raise ApiError("网站详细介绍不能超过 1000 个字符", 422)
+    return description
+
+
 def validate_subject_name(value):
     name = str(value or "").strip()
     if not 1 <= len(name) <= 50:

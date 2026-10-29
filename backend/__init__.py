@@ -54,12 +54,14 @@ def create_app(test_config=None):
     from .routes.admin import bp as admin_bp
     from .routes.exams import bp as exams_bp
     from .routes.stats import bp as stats_bp
+    from .routes.settings import bp as settings_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(subjects_bp, url_prefix="/api")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(exams_bp, url_prefix="/api")
     app.register_blueprint(stats_bp, url_prefix="/api")
+    app.register_blueprint(settings_bp, url_prefix="/api")
 
     @app.errorhandler(ApiError)
     def handle_api_error(error):

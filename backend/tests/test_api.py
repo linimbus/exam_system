@@ -145,6 +145,39 @@ def test_register_login_and_me(client):
     assert invalid.status_code == 422
 
 
+def test_site_settings(client):
+    public = client.get("/api/settings")
+    assert public.status_code == 200
+    assert public.get_json()["settings"]["site_name"] == "知考"
+
+    user = register_user(client)
+    forbidden = client.patch(
+        "/api/admin/settings",
+        headers=auth(user["token"]),
+        json={"site_name": "新名称", "site_description": "新介绍"},
+    )
+    assert forbidden.status_code == 403
+
+    token = admin_token(client)
+    updated = client.patch(
+        "/api/admin/settings",
+        headers=auth(token),
+        json={"site_name": "智慧考试平台", "site_description": "全新的网站介绍。"},
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["settings"]["site_name"] == "智慧考试平台"
+
+    public = client.get("/api/settings")
+    assert public.get_json()["settings"]["site_description"] == "全新的网站介绍。"
+
+    invalid = client.patch(
+        "/api/admin/settings",
+        headers=auth(token),
+        json={"site_name": ""},
+    )
+    assert invalid.status_code == 422
+
+
 def test_update_profile_nickname_and_password(client):
     data = register_user(client)
     token = data["token"]

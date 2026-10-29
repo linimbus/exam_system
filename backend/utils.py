@@ -53,6 +53,14 @@ def serialize_user(row):
     }
 
 
+def serialize_site_settings(row):
+    return {
+        "site_name": row["site_name"],
+        "site_description": row["site_description"],
+        "updated_at": row["updated_at"],
+    }
+
+
 def _load_json(value, fallback):
     try:
         return json.loads(value)

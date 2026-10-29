@@ -19,6 +19,7 @@
 - 科目管理：新增、编辑、删除科目（如科目一、科目二）
 - 题库管理：单选、多选、是非题的新增、编辑、删除、筛选与搜索
 - 用户管理：新增用户、调整角色、启用/停用账号、重置密码、删除用户
+- 网站设置：配置网站系统名称和网站详细介绍，实时应用到登录页与系统界面
 - 权限隔离：普通用户无法访问管理接口和后台页面
 - 题目及科目删除采用软删除，已有考试记录与历史解析不会被破坏
 
@@ -34,9 +35,10 @@
 │   ├── seed.py              # 初始管理员与演示题库
 │   ├── validators.py        # 用户名、密码、题目选项校验
 │   ├── routes/
-│   │   ├── auth_routes.py   # 注册、登录、当前用户
+│   │   ├── auth_routes.py   # 注册、登录、当前用户、个人设置
 │   │   ├── subjects.py      # 科目列表
-│   │   ├── admin.py         # 用户/科目/题库管理
+│   │   ├── admin.py         # 用户/科目/题库/网站设置管理
+│   │   ├── settings.py      # 网站信息公开读取
 │   │   ├── exams.py         # 开始考试、进度、交卷、记录
 │   │   └── stats.py         # 学情统计、错题本
 │   └── tests/test_api.py    # 后端接口自动化测试
@@ -187,6 +189,8 @@ python3 -m pytest -q
 | POST | `/api/auth/register` | 注册并返回 Token |
 | POST | `/api/auth/login` | 登录并返回 Token |
 | GET | `/api/auth/me` | 当前用户信息 |
+| PATCH | `/api/auth/profile` | 修改当前用户昵称/密码 |
+| GET | `/api/settings` | 读取网站名称与详细介绍（公开） |
 | GET | `/api/subjects` | 科目列表与题型数量 |
 | POST | `/api/exams/start` | 开始考试并随机抽题 |
 | PATCH | `/api/exams/{id}/progress` | 暂存答题进度 |
@@ -201,6 +205,7 @@ python3 -m pytest -q
 | PATCH/DELETE | `/api/admin/questions/{id}` | 修改/删除题目 |
 | GET/POST | `/api/admin/users` | 用户列表/新增 |
 | PATCH/DELETE | `/api/admin/users/{id}` | 修改/删除用户 |
+| GET/PATCH | `/api/admin/settings` | 读取/修改网站名称与详细介绍 |
 
 题目接口使用 `qtype` 表示题型：
 

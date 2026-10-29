@@ -13,11 +13,14 @@ from ..utils import (
     pagination_args,
     parse_int,
     serialize_question,
+    serialize_site_settings,
     serialize_user,
 )
 from ..validators import (
     validate_password,
     validate_question_options,
+    validate_site_description,
+    validate_site_name,
     validate_subject_name,
     validate_username,
 )
@@ -57,6 +60,51 @@ def _get_user_or_404(user_id):
     if not user:
         raise ApiError("用户不存在", 404)
     return user
+
+
+def _site_settings_row():
+    return get_db().execute(
+        "SELECT * FROM site_settings WHERE id = 1"
+    ).fetchone()
+
+
+# ------------------------------------------------------------ site settings
+
+
+@bp.get("/settings")
+@admin_required
+def get_site_settings():
+    return jsonify({"settings": serialize_site_settings(_site_settings_row())})
+
+
+@bp.patch("/settings")
+@admin_required
+def update_site_settings():
+    data = json_body()
+    current = _site_settings_row()
+
+    site_name = (
+        validate_site_name(data.get("site_name"))
+        if "site_name" in data
+        else current["site_name"]
+    )
+    site_description = (
+        validate_site_description(data.get("site_description"))
+        if "site_description" in data
+        else current["site_description"]
+    )
+
+    db = get_db()
+    db.execute(
+        """
+        UPDATE site_settings
+        SET site_name = ?, site_description = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """,
+        (site_name, site_description),
+    )
+    db.commit()
+    return jsonify({"settings": serialize_site_settings(_site_settings_row())})
 
 
 # ---------------------------------------------------------------- users
