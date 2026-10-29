@@ -25,8 +25,7 @@ def _token_from_request():
     return token or None
 
 
-def load_user_from_request():
-    token = _token_from_request()
+def load_user_from_token(token):
     if not token:
         raise ApiError("请先登录", 401)
 
@@ -52,6 +51,10 @@ def load_user_from_request():
     if not user["is_active"]:
         raise ApiError("账号已被停用，请联系管理员", 403)
     return user
+
+
+def load_user_from_request():
+    return load_user_from_token(_token_from_request())
 
 
 def login_required(view):

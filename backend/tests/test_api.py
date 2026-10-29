@@ -47,6 +47,34 @@ def register_user(client, username="learner", password="secret123"):
     return response.get_json()
 
 
+def mcp_call(client, method, params=None, request_id=1):
+    response = client.post(
+        "/api/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params or {},
+        },
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    return response.get_json()
+
+
+def mcp_tool(client, name, arguments, request_id=1):
+    response = mcp_call(
+        client,
+        "tools/call",
+        {"name": name, "arguments": arguments},
+        request_id,
+    )
+    return response["result"]
+
+
+def mcp_text(result):
+    return result["content"][0]["text"]
+
+
 def create_subject(client, token, name="科目一", description="测试科目"):
     response = client.post(
         "/api/admin/subjects",
@@ -176,6 +204,122 @@ def test_site_settings(client):
         json={"site_name": ""},
     )
     assert invalid.status_code == 422
+
+
+def test_mcp_protocol_admin_catalog_management(client):
+    initialize = mcp_call(
+        client,
+        "initialize",
+        {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "pytest", "version": "1.0"},
+        },
+    )
+    assert initialize["result"]["serverInfo"]["name"] == "exam-system-mcp"
+    assert initialize["result"]["protocolVersion"] == "2025-06-18"
+
+    tools = mcp_call(client, "tools/list")
+    names = {tool["name"] for tool in tools["result"]["tools"]}
+    assert {
+        "admin_login",
+        "list_subjects",
+        "list_questions",
+        "create_subject",
+        "update_subject",
+        "delete_subject",
+        "create_question",
+        "update_question",
+        "delete_question",
+    } <= names
+
+    notification = client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+    )
+    assert notification.status_code == 202
+
+    denied = mcp_tool(client, "list_subjects", {})
+    assert denied["isError"] is True
+    assert "登录" in mcp_text(denied)
+
+    login = mcp_tool(
+        client,
+        "admin_login",
+        {"username": "admin", "password": "admin123"},
+    )
+    assert login["isError"] is False
+    token = login["structuredContent"]["token"]
+
+    subject_result = mcp_tool(
+        client,
+        "create_subject",
+        {"token": token, "name": "MCP 科目", "description": "MCP 测试科目"},
+    )
+    assert subject_result["isError"] is False
+    subject = subject_result["structuredContent"]["subject"]
+
+    question_result = mcp_tool(
+        client,
+        "create_question",
+        {
+            "token": token,
+            "subject_id": subject["id"],
+            "qtype": "single",
+            "content": "MCP 测试题目",
+            "options": ["选项 A", "选项 B"],
+            "answer": ["A"],
+            "explanation": "测试解析",
+        },
+    )
+    assert question_result["isError"] is False
+    question = question_result["structuredContent"]["question"]
+
+    subjects = mcp_tool(client, "list_subjects", {"token": token})
+    assert subjects["structuredContent"]["total"] >= 1
+
+    questions = mcp_tool(
+        client,
+        "list_questions",
+        {"token": token, "subject_id": subject["id"]},
+    )
+    assert questions["structuredContent"]["total"] == 1
+    assert questions["structuredContent"]["items"][0]["answer"] == ["A"]
+
+    renamed = mcp_tool(
+        client,
+        "update_subject",
+        {"token": token, "subject_id": subject["id"], "name": "MCP 科目改名"},
+    )
+    assert renamed["structuredContent"]["subject"]["name"] == "MCP 科目改名"
+
+    moved = mcp_tool(
+        client,
+        "update_question",
+        {
+            "token": token,
+            "question_id": question["id"],
+            "content": "MCP 测试题目更新",
+        },
+    )
+    assert moved["structuredContent"]["question"]["content"] == "MCP 测试题目更新"
+
+    deleted_question = mcp_tool(
+        client,
+        "delete_question",
+        {"token": token, "question_id": question["id"]},
+    )
+    assert deleted_question["isError"] is False
+
+    deleted_subject = mcp_tool(
+        client,
+        "delete_subject",
+        {"token": token, "subject_id": subject["id"]},
+    )
+    assert deleted_subject["isError"] is False
+
+    assert mcp_call(client, "unknown/method")["error"]["code"] == -32601
+    assert client.get("/api/mcp").status_code == 405
 
 
 def test_update_profile_nickname_and_password(client):

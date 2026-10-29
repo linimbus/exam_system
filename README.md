@@ -20,6 +20,7 @@
 - 题库管理：单选、多选、是非题的新增、编辑、删除、筛选与搜索
 - 用户管理：新增用户、调整角色、启用/停用账号、重置密码、删除用户
 - 网站设置：配置网站系统名称和网站详细介绍，实时应用到登录页与系统界面
+- MCP 服务：支持通过 MCP 协议管理员登录、查询科目与题库、管理科目和题目
 - 权限隔离：普通用户无法访问管理接口和后台页面
 - 题目及科目删除采用软删除，已有考试记录与历史解析不会被破坏
 
@@ -30,6 +31,7 @@
 ├── backend/
 │   ├── __init__.py          # Flask 应用工厂、CORS、蓝图注册
 │   ├── auth.py              # 签名 Token、登录/管理员权限装饰器
+│   ├── catalog.py           # 科目与题库共享业务逻辑
 │   ├── db.py                # SQLite 连接与初始化
 │   ├── schema.sql           # 数据表结构
 │   ├── seed.py              # 初始管理员与演示题库
@@ -39,6 +41,7 @@
 │   │   ├── subjects.py      # 科目列表
 │   │   ├── admin.py         # 用户/科目/题库/网站设置管理
 │   │   ├── settings.py      # 网站信息公开读取
+│   │   ├── mcp_routes.py    # MCP JSON-RPC 服务
 │   │   ├── exams.py         # 开始考试、进度、交卷、记录
 │   │   └── stats.py         # 学情统计、错题本
 │   └── tests/test_api.py    # 后端接口自动化测试
@@ -178,7 +181,7 @@ Docker 镜像额外支持 `FRONTEND_PORT`、`BACKEND_PORT` 环境变量（默认
 python3 -m pytest -q
 ```
 
-测试覆盖注册登录、权限校验、用户管理、科目与题目 CRUD、考试抽题、答题进度、交卷判分、错题本与学情统计。
+测试覆盖注册登录、权限校验、用户管理、科目与题目 CRUD、MCP 协议与工具调用、考试抽题、答题进度、交卷判分、错题本与学情统计。
 
 ## 主要 API
 
@@ -214,6 +217,86 @@ python3 -m pytest -q
 - `judge`：是非题，正确答案为 `["T"]` 或 `["F"]`
 
 选择题的选项标识由后端按顺序生成为 `A`、`B`、`C` 等；是非题固定为“正确 / 错误”。
+
+## MCP 服务
+
+后端提供基于 Streamable HTTP 的无状态 MCP 服务，入口为：
+
+```text
+POST http://127.0.0.1:5001/api/mcp
+```
+
+支持 MCP `initialize`、`ping`、`tools/list`、`tools/call` 和通知消息。客户端通过 POST 发送 JSON-RPC 2.0 请求即可；通知消息返回 `202 Accepted`。
+
+### 可用工具
+
+| 工具 | 说明 |
+| --- | --- |
+| `admin_login` | 管理员登录，返回后续工具使用的 token |
+| `list_subjects` | 查询所有科目信息、题目数量和题型分布 |
+| `list_questions` | 分页查询题库，可按科目、题型、关键词筛选 |
+| `get_question` | 按 ID 查询题目详情、答案与解析 |
+| `create_subject` | 新增科目 |
+| `update_subject` | 修改科目名称、描述和排序 |
+| `delete_subject` | 删除科目（软删除） |
+| `create_question` | 新增题目并配置所属科目 |
+| `update_question` | 修改题目或调整题目所属科目 |
+| `delete_question` | 删除题目（软删除） |
+
+管理工具需要管理员 token。token 可以放在工具参数 `token` 中，也可以通过请求头传递：
+
+```text
+Authorization: Bearer <token>
+```
+
+### 调用示例
+
+初始化：
+
+```bash
+curl -s http://127.0.0.1:5001/api/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": {"name": "curl", "version": "1.0"}
+    }
+  }'
+```
+
+管理员登录：
+
+```bash
+curl -s http://127.0.0.1:5001/api/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "admin_login",
+      "arguments": {"username": "admin", "password": "admin123"}
+    }
+  }'
+```
+
+查询科目：
+
+```bash
+curl -s http://127.0.0.1:5001/api/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {"name": "list_subjects", "arguments": {}}
+  }'
+```
 
 ## 数据说明
 

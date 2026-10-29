@@ -55,6 +55,7 @@ def create_app(test_config=None):
     from .routes.exams import bp as exams_bp
     from .routes.stats import bp as stats_bp
     from .routes.settings import bp as settings_bp
+    from .routes.mcp_routes import bp as mcp_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(subjects_bp, url_prefix="/api")
@@ -62,6 +63,7 @@ def create_app(test_config=None):
     app.register_blueprint(exams_bp, url_prefix="/api")
     app.register_blueprint(stats_bp, url_prefix="/api")
     app.register_blueprint(settings_bp, url_prefix="/api")
+    app.register_blueprint(mcp_bp, url_prefix="/api")
 
     @app.errorhandler(ApiError)
     def handle_api_error(error):
