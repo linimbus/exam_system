@@ -46,9 +46,18 @@ def serialize_user(row):
     return {
         "id": row["id"],
         "username": row["username"],
+        "nickname": row["nickname"] if "nickname" in row.keys() else "",
         "role": row["role"],
         "is_active": bool(row["is_active"]),
         "created_at": row["created_at"],
+    }
+
+
+def serialize_site_settings(row):
+    return {
+        "site_name": row["site_name"],
+        "site_description": row["site_description"],
+        "updated_at": row["updated_at"],
     }
 
 

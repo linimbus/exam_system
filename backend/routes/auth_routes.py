@@ -6,7 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from ..auth import create_token, login_required
 from ..db import get_db
 from ..utils import ApiError, json_body, serialize_user
-from ..validators import validate_password, validate_username
+from ..validators import validate_nickname, validate_password, validate_username
 
 
 bp = Blueprint("auth_routes", __name__)
@@ -38,7 +38,7 @@ def register():
         raise ApiError("该用户名已被注册", 409) from None
 
     user = db.execute(
-        "SELECT id, username, role, is_active, created_at FROM users WHERE id = ?",
+        "SELECT id, username, nickname, role, is_active, created_at FROM users WHERE id = ?",
         (cursor.lastrowid,),
     ).fetchone()
     return jsonify({"token": create_token(user["id"]), "user": serialize_user(user)}), 201
@@ -68,3 +68,43 @@ def login():
 @login_required
 def me():
     return jsonify({"user": serialize_user(g.user)})
+
+
+@bp.patch("/profile")
+@login_required
+def update_profile():
+    data = json_body()
+    db = get_db()
+    updates = []
+    params = []
+
+    if "nickname" in data:
+        nickname = validate_nickname(data.get("nickname"))
+        updates.append("nickname = ?")
+        params.append(nickname)
+
+    if "new_password" in data:
+        new_password = data.get("new_password")
+        current_password = str(data.get("current_password") or "")
+        if not current_password:
+            raise ApiError("请输入当前密码", 422)
+        row = db.execute(
+            "SELECT password_hash FROM users WHERE id = ?", (g.user["id"],)
+        ).fetchone()
+        if not check_password_hash(row["password_hash"], current_password):
+            raise ApiError("当前密码不正确", 400)
+        updates.append("password_hash = ?")
+        params.append(generate_password_hash(validate_password(new_password)))
+
+    if not updates:
+        raise ApiError("没有需要修改的内容", 400)
+
+    params.append(g.user["id"])
+    db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+
+    user = db.execute(
+        "SELECT id, username, nickname, role, is_active, created_at FROM users WHERE id = ?",
+        (g.user["id"],),
+    ).fetchone()
+    return jsonify({"user": serialize_user(user)})

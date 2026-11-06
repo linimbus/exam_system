@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, NotFound
 
 from .db import init_app as init_db_app
 from .utils import ApiError, error_response
@@ -16,6 +16,7 @@ def create_app(test_config=None):
     app = Flask(__name__)
 
     default_database = BASE_DIR / "data" / "exam.db"
+    default_frontend = BASE_DIR / "frontend"
     origins = os.environ.get(
         "EXAM_CORS_ORIGINS",
         "http://localhost:8000,http://127.0.0.1:8000,"
@@ -24,6 +25,7 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         DATABASE=os.environ.get("EXAM_DATABASE", str(default_database)),
+        FRONTEND_DIR=os.environ.get("EXAM_FRONTEND_DIR", str(default_frontend)),
         SECRET_KEY=os.environ.get(
             "EXAM_SECRET_KEY", "dev-only-secret-change-me-before-production"
         ),
@@ -54,12 +56,16 @@ def create_app(test_config=None):
     from .routes.admin import bp as admin_bp
     from .routes.exams import bp as exams_bp
     from .routes.stats import bp as stats_bp
+    from .routes.settings import bp as settings_bp
+    from .routes.mcp_routes import bp as mcp_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(subjects_bp, url_prefix="/api")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(exams_bp, url_prefix="/api")
     app.register_blueprint(stats_bp, url_prefix="/api")
+    app.register_blueprint(settings_bp, url_prefix="/api")
+    app.register_blueprint(mcp_bp, url_prefix="/api")
 
     @app.errorhandler(ApiError)
     def handle_api_error(error):
@@ -72,6 +78,23 @@ def create_app(test_config=None):
     @app.get("/api/health")
     def health():
         return jsonify({"status": "ok"})
+
+    frontend_dir = Path(app.config["FRONTEND_DIR"]).expanduser().resolve()
+
+    @app.get("/")
+    def index():
+        return send_from_directory(frontend_dir, "index.html")
+
+    @app.get("/<path:path>")
+    def frontend_assets(path):
+        if path == "api" or path.startswith("api/"):
+            raise NotFound()
+        try:
+            return send_from_directory(frontend_dir, path)
+        except NotFound:
+            if "." in Path(path).name:
+                raise
+            return send_from_directory(frontend_dir, "index.html")
 
     init_db_app(app)
     return app

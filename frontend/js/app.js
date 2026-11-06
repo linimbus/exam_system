@@ -6,6 +6,12 @@
     const modalRoot = document.getElementById("modal-root");
     const toastRoot = document.getElementById("toast-root");
 
+    const DEFAULT_SITE = {
+        site_name: "知考",
+        site_description:
+            "多科目、多题型在线考试，自动判分、逐题解析、错题沉淀与学情分析，帮助你把时间用在真正需要加强的地方。",
+    };
+
     const state = {
         user: null,
         authMode: "login",
@@ -20,6 +26,7 @@
         adminQuestionPagination: null,
         adminUsers: [],
         currentRoute: null,
+        site: { ...DEFAULT_SITE },
     };
 
     const ICONS = {
@@ -65,6 +72,8 @@
             '<path d="m3 3 18 18"/><path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3.2 4.1"/><path d="M6.2 6.2A18.4 18.4 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
         shield:
             '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+        settings:
+            '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
         award:
             '<circle cx="12" cy="8" r="6"/><path d="m8.5 13.5-1.5 8 5-3 5 3-1.5-8"/>',
         chart:
@@ -178,6 +187,39 @@
     function initials(name) {
         const value = String(name || "?").trim();
         return value ? value.slice(0, value === value.toLowerCase() ? 2 : 1).toUpperCase() : "?";
+    }
+
+    function displayName(user) {
+        if (!user) return "";
+        return String(user.nickname || "").trim() || user.username;
+    }
+
+    function siteName() {
+        const value = state.site && String(state.site.site_name || "").trim();
+        return value || DEFAULT_SITE.site_name;
+    }
+
+    function siteDescription() {
+        const value =
+            state.site && String(state.site.site_description || "").trim();
+        return value || DEFAULT_SITE.site_description;
+    }
+
+    function siteMark() {
+        return siteName().slice(0, 2);
+    }
+
+    async function loadSiteSettings() {
+        try {
+            const data = await api.get("/settings");
+            if (data && data.settings) {
+                state.site = data.settings;
+                const bootMark = document.getElementById("boot-mark");
+                if (bootMark) bootMark.textContent = siteMark();
+            }
+        } catch (error) {
+            console.warn("网站设置加载失败，将使用默认配置。", error);
+        }
     }
 
     function greeting() {
@@ -325,7 +367,7 @@
         state.timerInterval = null;
         closeModal();
         appEl.innerHTML = authPageHtml(state.authMode);
-        document.title = "登录 · 知考在线考试系统";
+        document.title = `登录 · ${siteName()}`;
         bindAuth();
     }
 
@@ -336,13 +378,13 @@
             <section class="auth-brand">
                 <div class="auth-brand-inner">
                     <div class="auth-logo">
-                        <span class="logo-tile">知考</span>
-                        <span>知考 · 在线考试系统</span>
+                        <span class="logo-tile" title="${esc(siteName())}">${esc(siteMark())}</span>
+                        <span>${esc(siteName())} · 在线考试系统</span>
                     </div>
                     <div class="auth-brand-copy">
                         <div class="auth-eyebrow">Smart Exam Platform</div>
                         <h1>让每一次练习<br><span>都看得见进步</span></h1>
-                        <p>多科目、多题型在线考试，自动判分、逐题解析、错题沉淀与学情分析，帮助你把时间用在真正需要加强的地方。</p>
+                        <p>${esc(siteDescription())}</p>
                         <div class="auth-features">
                             <div class="auth-feature">
                                 <span class="feature-icon">${icon("layers", 18)}</span>
@@ -358,14 +400,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="auth-brand-foot">知考在线考试系统 · 专注高效学习与测评</div>
+                    <div class="auth-brand-foot">${esc(siteName())} · 专注高效学习与测评</div>
                 </div>
             </section>
             <section class="auth-panel">
                 <div class="auth-card">
                     <div class="auth-mobile-logo">
-                        <span class="logo-tile">知考</span>
-                        <span>知考在线考试系统</span>
+                        <span class="logo-tile" title="${esc(siteName())}">${esc(siteMark())}</span>
+                        <span>${esc(siteName())}</span>
                     </div>
                     <h2>${isRegister ? "创建你的学习账号" : "欢迎回来"}</h2>
                     <p class="auth-subtitle">${isRegister ? "注册后即可参加考试并查看学习分析" : "登录后继续你的备考与错题复习"}</p>
@@ -483,6 +525,7 @@
         "admin-subjects": { title: "科目管理", subtitle: "维护考试科目与题目分类" },
         "admin-questions": { title: "题库管理", subtitle: "增删改查各科目考试题目" },
         "admin-users": { title: "用户管理", subtitle: "管理平台用户、角色与状态" },
+        "admin-settings": { title: "网站设置", subtitle: "配置网站系统名称与详细介绍" },
     };
 
     function navLink(routeName, label, iconName, active) {
@@ -490,17 +533,18 @@
     }
 
     function renderShell(route) {
-        const meta = ROUTE_META[route.name] || { title: "知考", subtitle: "" };
+        const meta = ROUTE_META[route.name] || { title: siteName(), subtitle: "" };
         const isAdmin = state.user && state.user.role === "admin";
         const active = route.name;
-        document.title = `${meta.title} · 知考在线考试系统`;
+        const userName = displayName(state.user);
+        document.title = `${meta.title} · ${siteName()}`;
 
         appEl.innerHTML = `
         <div class="app-shell">
             <aside class="sidebar">
                 <div class="sidebar-brand">
-                    <span class="logo-tile">知考</span>
-                    <div class="brand-copy"><strong>知考</strong><span>Exam System</span></div>
+                    <span class="logo-tile" title="${esc(siteName())}">${esc(siteMark())}</span>
+                    <div class="brand-copy"><strong title="${esc(siteName())}">${esc(siteName())}</strong><span>Exam System</span></div>
                 </div>
                 <div class="nav-scroll">
                     <div class="nav-group">
@@ -517,18 +561,25 @@
                                 ${navLink("admin/subjects", "科目管理", "layers", active === "admin-subjects")}
                                 ${navLink("admin/questions", "题库管理", "listChecks", active === "admin-questions")}
                                 ${navLink("admin/users", "用户管理", "users", active === "admin-users")}
+                                ${navLink("admin/settings", "网站设置", "settings", active === "admin-settings")}
                             </div>`
                             : ""
                     }
                 </div>
                 <div class="sidebar-user">
-                    <div class="user-line">
-                        <span class="avatar">${esc(initials(state.user.username))}</span>
-                        <div class="user-meta">
-                            <strong>${esc(state.user.username)}</strong>
-                            <span>${isAdmin ? "系统管理员" : "普通学员"}</span>
+                    <div class="user-menu">
+                        <button class="user-line user-menu-trigger" type="button" data-user-menu-toggle aria-haspopup="menu" aria-expanded="false" title="个人设置">
+                            <span class="avatar" data-user-avatar>${esc(initials(userName))}</span>
+                            <div class="user-meta">
+                                <strong data-user-name>${esc(userName)}</strong>
+                                <span>${isAdmin ? "系统管理员" : "普通学员"}</span>
+                            </div>
+                            ${icon("chevronRight", 15)}
+                        </button>
+                        <div class="user-dropdown" role="menu">
+                            <button class="dropdown-item" type="button" role="menuitem" data-open-settings>${icon("user", 16)}<span>个人设置</span></button>
+                            <button class="dropdown-item" type="button" role="menuitem" data-logout>${icon("logout", 16)}<span>退出登录</span></button>
                         </div>
-                        <button class="icon-button" type="button" data-logout title="退出登录" aria-label="退出登录">${icon("logout", 17)}</button>
                     </div>
                 </div>
             </aside>
@@ -542,9 +593,15 @@
                     </div>
                     <div class="topbar-right">
                         <span class="role-chip">${isAdmin ? "管理员" : "学员"}</span>
-                        <div class="topbar-user">
-                            <span class="avatar sm">${esc(initials(state.user.username))}</span>
-                            <span>${esc(state.user.username)}</span>
+                        <div class="user-menu topbar-user-menu">
+                            <button class="topbar-user user-menu-trigger" type="button" data-user-menu-toggle aria-haspopup="menu" aria-expanded="false" title="个人设置">
+                                <span class="avatar sm" data-user-avatar>${esc(initials(userName))}</span>
+                                <span data-user-name>${esc(userName)}</span>
+                            </button>
+                            <div class="user-dropdown align-right" role="menu">
+                                <button class="dropdown-item" type="button" role="menuitem" data-open-settings>${icon("user", 16)}<span>个人设置</span></button>
+                                <button class="dropdown-item" type="button" role="menuitem" data-logout>${icon("logout", 16)}<span>退出登录</span></button>
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -644,7 +701,7 @@
             <section class="hero-card">
                 <div class="hero-inner">
                     <div>
-                        <div class="hero-eyebrow">${esc(greeting())}，${esc(state.user.username)}</div>
+                        <div class="hero-eyebrow">${esc(greeting())}，<span data-user-name>${esc(displayName(state.user))}</span></div>
                         <h2>保持节奏，<span>稳步提升</span></h2>
                         <p>从一次随机练习开始，系统会自动记录成绩、错题与薄弱知识点，让每一次复习更有方向。</p>
                         <div class="hero-actions">
@@ -935,6 +992,9 @@
                 case "admin-users":
                     await renderAdminUsers(route, seq);
                     break;
+                case "admin-settings":
+                    await renderAdminSettings(route, seq);
+                    break;
                 default:
                     if (seq !== state.renderSeq) return;
                     setPage(
@@ -961,6 +1021,132 @@
     }
 
     // ---------------------------------------------------------------- events
+
+    function closeUserMenus() {
+        document.querySelectorAll(".user-menu.open").forEach((menu) => {
+            menu.classList.remove("open");
+            const trigger = menu.querySelector("[data-user-menu-toggle]");
+            if (trigger) trigger.setAttribute("aria-expanded", "false");
+        });
+    }
+
+    function refreshUserChrome() {
+        if (!state.user) return;
+        const name = displayName(state.user);
+        document.querySelectorAll("[data-user-name]").forEach((el) => {
+            el.textContent = name;
+        });
+        document.querySelectorAll("[data-user-avatar]").forEach((el) => {
+            el.textContent = initials(name);
+        });
+    }
+
+    function openProfileModal() {
+        const user = state.user;
+        const name = displayName(user);
+        openModal({
+            title: "个人设置",
+            subtitle: "修改昵称或登录密码",
+            body: `
+                <form class="modal-form" id="profile-form" novalidate>
+                    <div class="profile-summary">
+                        <span class="avatar">${esc(initials(name))}</span>
+                        <div>
+                            <strong>${esc(name)}</strong>
+                            <span>登录账号：${esc(user.username)}</span>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-nickname">昵称 <span class="field-hint">最多 32 个字符，留空显示用户名</span></label>
+                        <input class="input" id="profile-nickname" name="nickname" maxlength="32" value="${esc(user.nickname || "")}" placeholder="${esc(user.username)}">
+                    </div>
+                    <div class="form-divider"><span>修改密码</span></div>
+                    <p class="field-hint">如不需要修改密码，以下三项请留空。</p>
+                    <div class="form-field">
+                        <label for="profile-current-password">当前密码</label>
+                        <input class="input" id="profile-current-password" name="current_password" type="password" autocomplete="current-password" maxlength="64" placeholder="请输入当前密码">
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-new-password">新密码</label>
+                        <input class="input" id="profile-new-password" name="new_password" type="password" autocomplete="new-password" maxlength="64" placeholder="6-64 位新密码">
+                    </div>
+                    <div class="form-field">
+                        <label for="profile-confirm-password">确认新密码</label>
+                        <input class="input" id="profile-confirm-password" name="confirm_password" type="password" autocomplete="new-password" maxlength="64" placeholder="请再次输入新密码">
+                    </div>
+                    <div class="form-message" id="profile-form-error"></div>
+                </form>`,
+            footer: `
+                <button class="btn btn-secondary" data-modal-close>取消</button>
+                <button class="btn btn-primary" type="submit" form="profile-form" id="save-profile-btn">保存修改</button>`,
+        });
+
+        const form = document.getElementById("profile-form");
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const errorBox = document.getElementById("profile-form-error");
+            const button = document.getElementById("save-profile-btn");
+            const nickname = document
+                .getElementById("profile-nickname")
+                .value.trim();
+            const currentPassword = document.getElementById(
+                "profile-current-password"
+            ).value;
+            const newPassword =
+                document.getElementById("profile-new-password").value;
+            const confirmPassword = document.getElementById(
+                "profile-confirm-password"
+            ).value;
+            errorBox.textContent = "";
+
+            if (nickname.length > 32) {
+                errorBox.textContent = "昵称不能超过 32 个字符。";
+                return;
+            }
+
+            const changingPassword = Boolean(
+                currentPassword || newPassword || confirmPassword
+            );
+            if (changingPassword) {
+                if (!currentPassword) {
+                    errorBox.textContent = "请输入当前密码。";
+                    return;
+                }
+                if (!newPassword) {
+                    errorBox.textContent = "请输入新密码。";
+                    return;
+                }
+                if (newPassword.length < 6 || newPassword.length > 64) {
+                    errorBox.textContent = "新密码长度需为 6-64 位。";
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    errorBox.textContent = "两次输入的新密码不一致。";
+                    return;
+                }
+            }
+
+            const payload = { nickname };
+            if (changingPassword) {
+                payload.current_password = currentPassword;
+                payload.new_password = newPassword;
+            }
+
+            button.disabled = true;
+            button.classList.add("is-loading");
+            try {
+                const result = await api.patch("/auth/profile", payload);
+                state.user = result.user;
+                closeModal();
+                refreshUserChrome();
+                toast("个人设置已更新");
+            } catch (error) {
+                errorBox.textContent = error.message;
+                button.disabled = false;
+                button.classList.remove("is-loading");
+            }
+        });
+    }
 
     function logout() {
         api.clearToken();
@@ -992,7 +1178,27 @@
             if (shell) shell.classList.remove("sidebar-open");
             return;
         }
+        const menuToggle = event.target.closest("[data-user-menu-toggle]");
+        if (menuToggle) {
+            const menu = menuToggle.closest(".user-menu");
+            const wasOpen = menu.classList.contains("open");
+            closeUserMenus();
+            if (!wasOpen) {
+                menu.classList.add("open");
+                menuToggle.setAttribute("aria-expanded", "true");
+            }
+            return;
+        }
+        if (event.target.closest("[data-open-settings]")) {
+            closeUserMenus();
+            openProfileModal();
+            return;
+        }
+        if (!event.target.closest(".user-menu")) {
+            closeUserMenus();
+        }
         if (event.target.closest("[data-logout]")) {
+            closeUserMenus();
             logout();
             return;
         }
@@ -1017,6 +1223,10 @@
         if (event.key === "Escape") {
             if (modalRoot.children.length) {
                 closeModal();
+                return;
+            }
+            if (document.querySelector(".user-menu.open")) {
+                closeUserMenus();
                 return;
             }
             const shell = document.querySelector(".app-shell");
@@ -2269,6 +2479,89 @@
         });
     }
 
+    // --------------------------------------------------------- admin settings
+
+    async function renderAdminSettings(route, seq) {
+        const data = await api.get("/settings");
+        if (seq !== state.renderSeq) return;
+        state.site = data.settings || state.site;
+        const info = state.site;
+
+        setPage(`
+            ${adminIntro(
+                "网站设置",
+                "配置网站系统名称和详细介绍，保存后会立即应用到登录页、侧边栏和浏览器标题。"
+            )}
+            <div class="settings-layout">
+                <div class="panel settings-panel">
+                    <form class="settings-form" id="site-settings-form" novalidate>
+                        <div class="form-field">
+                            <label for="site-name">网站系统名称 <span class="field-hint">1-50 个字符</span></label>
+                            <input class="input" id="site-name" name="site_name" maxlength="50" value="${esc(info.site_name || "")}" placeholder="例如：知考">
+                        </div>
+                        <div class="form-field">
+                            <label for="site-description">网站详细介绍 <span class="field-hint">最多 1000 个字符</span></label>
+                            <textarea class="textarea" id="site-description" name="site_description" maxlength="1000" rows="7" placeholder="介绍网站定位、功能与特色">${esc(info.site_description || "")}</textarea>
+                        </div>
+                        <div class="form-message" id="site-settings-error"></div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary" type="submit" id="save-site-settings-btn">${icon("check", 15)}保存设置</button>
+                        </div>
+                    </form>
+                </div>
+                <aside class="settings-preview">
+                    <div class="preview-label">界面预览</div>
+                    <div class="preview-brand">
+                        <span class="logo-tile">${esc(siteMark())}</span>
+                        <div class="brand-copy"><strong>${esc(siteName())}</strong><span>Exam System</span></div>
+                    </div>
+                    <p class="preview-description">${esc(siteDescription())}</p>
+                </aside>
+            </div>
+        `);
+
+        const form = document.getElementById("site-settings-form");
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const errorBox = document.getElementById("site-settings-error");
+            const button = document.getElementById("save-site-settings-btn");
+            const site_name = document.getElementById("site-name").value.trim();
+            const site_description = document
+                .getElementById("site-description")
+                .value.trim();
+            errorBox.textContent = "";
+
+            if (!site_name) {
+                errorBox.textContent = "请填写网站系统名称。";
+                return;
+            }
+            if (site_name.length > 50) {
+                errorBox.textContent = "网站系统名称不能超过 50 个字符。";
+                return;
+            }
+            if (site_description.length > 1000) {
+                errorBox.textContent = "网站详细介绍不能超过 1000 个字符。";
+                return;
+            }
+
+            button.disabled = true;
+            button.classList.add("is-loading");
+            try {
+                const result = await api.patch("/admin/settings", {
+                    site_name,
+                    site_description,
+                });
+                state.site = result.settings;
+                toast("网站设置已更新");
+                renderRoute();
+            } catch (error) {
+                errorBox.textContent = error.message;
+                button.disabled = false;
+                button.classList.remove("is-loading");
+            }
+        });
+    }
+
     // ------------------------------------------------------------ admin users
 
     async function renderAdminUsers(route, seq) {
@@ -2471,6 +2764,7 @@
     // ------------------------------------------------------------------ init
 
     async function init() {
+        await loadSiteSettings();
         if (!api.hasToken()) {
             renderAuth();
             return;

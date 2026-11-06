@@ -3,6 +3,7 @@ import json
 from flask import Blueprint, g, jsonify, request
 
 from ..auth import login_required
+from ..catalog import get_active_subject
 from ..db import get_db
 from ..utils import (
     ApiError,
@@ -12,8 +13,6 @@ from ..utils import (
     parse_int,
     serialize_question,
 )
-from .subjects import get_active_subject
-
 
 bp = Blueprint("exams", __name__)
 

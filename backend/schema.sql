@@ -1,10 +1,25 @@
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    nickname TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    site_name TEXT NOT NULL DEFAULT '知考',
+    site_description TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO site_settings (id, site_name, site_description)
+VALUES (
+    1,
+    '知考',
+    '多科目、多题型在线考试，自动判分、逐题解析、错题沉淀与学情分析，帮助你把时间用在真正需要加强的地方。'
 );
 
 CREATE TABLE IF NOT EXISTS subjects (

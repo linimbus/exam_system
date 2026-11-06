@@ -47,6 +47,34 @@ def register_user(client, username="learner", password="secret123"):
     return response.get_json()
 
 
+def mcp_call(client, method, params=None, request_id=1):
+    response = client.post(
+        "/api/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params or {},
+        },
+    )
+    assert response.status_code == 200, response.get_data(as_text=True)
+    return response.get_json()
+
+
+def mcp_tool(client, name, arguments, request_id=1):
+    response = mcp_call(
+        client,
+        "tools/call",
+        {"name": name, "arguments": arguments},
+        request_id,
+    )
+    return response["result"]
+
+
+def mcp_text(result):
+    return result["content"][0]["text"]
+
+
 def create_subject(client, token, name="科目一", description="测试科目"):
     response = client.post(
         "/api/admin/subjects",
@@ -119,6 +147,24 @@ def test_health(client):
     assert response.get_json()["status"] == "ok"
 
 
+def test_frontend_is_served_by_backend(client):
+    index = client.get("/")
+    assert index.status_code == 200
+    assert "text/html" in index.content_type
+    assert "知考" in index.get_data(as_text=True)
+
+    styles = client.get("/css/styles.css")
+    assert styles.status_code == 200
+    assert "text/css" in styles.content_type
+
+    missing_asset = client.get("/js/missing.js")
+    assert missing_asset.status_code == 404
+
+    missing_api = client.get("/api/not-found")
+    assert missing_api.status_code == 404
+    assert missing_api.is_json
+
+
 def test_register_login_and_me(client):
     data = register_user(client)
     assert data["user"]["username"] == "learner"
@@ -143,6 +189,190 @@ def test_register_login_and_me(client):
         "/api/auth/register", json={"username": "a b", "password": "123"}
     )
     assert invalid.status_code == 422
+
+
+def test_site_settings(client):
+    public = client.get("/api/settings")
+    assert public.status_code == 200
+    assert public.get_json()["settings"]["site_name"] == "知考"
+
+    user = register_user(client)
+    forbidden = client.patch(
+        "/api/admin/settings",
+        headers=auth(user["token"]),
+        json={"site_name": "新名称", "site_description": "新介绍"},
+    )
+    assert forbidden.status_code == 403
+
+    token = admin_token(client)
+    updated = client.patch(
+        "/api/admin/settings",
+        headers=auth(token),
+        json={"site_name": "智慧考试平台", "site_description": "全新的网站介绍。"},
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["settings"]["site_name"] == "智慧考试平台"
+
+    public = client.get("/api/settings")
+    assert public.get_json()["settings"]["site_description"] == "全新的网站介绍。"
+
+    invalid = client.patch(
+        "/api/admin/settings",
+        headers=auth(token),
+        json={"site_name": ""},
+    )
+    assert invalid.status_code == 422
+
+
+def test_mcp_protocol_admin_catalog_management(client):
+    initialize = mcp_call(
+        client,
+        "initialize",
+        {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "pytest", "version": "1.0"},
+        },
+    )
+    assert initialize["result"]["serverInfo"]["name"] == "exam-system-mcp"
+    assert initialize["result"]["protocolVersion"] == "2025-06-18"
+
+    tools = mcp_call(client, "tools/list")
+    names = {tool["name"] for tool in tools["result"]["tools"]}
+    assert {
+        "admin_login",
+        "list_subjects",
+        "list_questions",
+        "create_subject",
+        "update_subject",
+        "delete_subject",
+        "create_question",
+        "update_question",
+        "delete_question",
+    } <= names
+
+    notification = client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+    )
+    assert notification.status_code == 202
+
+    denied = mcp_tool(client, "list_subjects", {})
+    assert denied["isError"] is True
+    assert "登录" in mcp_text(denied)
+
+    login = mcp_tool(
+        client,
+        "admin_login",
+        {"username": "admin", "password": "admin123"},
+    )
+    assert login["isError"] is False
+    token = login["structuredContent"]["token"]
+
+    subject_result = mcp_tool(
+        client,
+        "create_subject",
+        {"token": token, "name": "MCP 科目", "description": "MCP 测试科目"},
+    )
+    assert subject_result["isError"] is False
+    subject = subject_result["structuredContent"]["subject"]
+
+    question_result = mcp_tool(
+        client,
+        "create_question",
+        {
+            "token": token,
+            "subject_id": subject["id"],
+            "qtype": "single",
+            "content": "MCP 测试题目",
+            "options": ["选项 A", "选项 B"],
+            "answer": ["A"],
+            "explanation": "测试解析",
+        },
+    )
+    assert question_result["isError"] is False
+    question = question_result["structuredContent"]["question"]
+
+    subjects = mcp_tool(client, "list_subjects", {"token": token})
+    assert subjects["structuredContent"]["total"] >= 1
+
+    questions = mcp_tool(
+        client,
+        "list_questions",
+        {"token": token, "subject_id": subject["id"]},
+    )
+    assert questions["structuredContent"]["total"] == 1
+    assert questions["structuredContent"]["items"][0]["answer"] == ["A"]
+
+    renamed = mcp_tool(
+        client,
+        "update_subject",
+        {"token": token, "subject_id": subject["id"], "name": "MCP 科目改名"},
+    )
+    assert renamed["structuredContent"]["subject"]["name"] == "MCP 科目改名"
+
+    moved = mcp_tool(
+        client,
+        "update_question",
+        {
+            "token": token,
+            "question_id": question["id"],
+            "content": "MCP 测试题目更新",
+        },
+    )
+    assert moved["structuredContent"]["question"]["content"] == "MCP 测试题目更新"
+
+    deleted_question = mcp_tool(
+        client,
+        "delete_question",
+        {"token": token, "question_id": question["id"]},
+    )
+    assert deleted_question["isError"] is False
+
+    deleted_subject = mcp_tool(
+        client,
+        "delete_subject",
+        {"token": token, "subject_id": subject["id"]},
+    )
+    assert deleted_subject["isError"] is False
+
+    assert mcp_call(client, "unknown/method")["error"]["code"] == -32601
+    assert client.get("/api/mcp").status_code == 405
+
+
+def test_update_profile_nickname_and_password(client):
+    data = register_user(client)
+    token = data["token"]
+
+    updated = client.patch(
+        "/api/auth/profile", headers=auth(token), json={"nickname": "小明"}
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["user"]["nickname"] == "小明"
+
+    wrong = client.patch(
+        "/api/auth/profile",
+        headers=auth(token),
+        json={"current_password": "badpass", "new_password": "newsecret123"},
+    )
+    assert wrong.status_code == 400
+
+    changed = client.patch(
+        "/api/auth/profile",
+        headers=auth(token),
+        json={"current_password": "secret123", "new_password": "newsecret123"},
+    )
+    assert changed.status_code == 200
+
+    old_login = client.post(
+        "/api/auth/login", json={"username": "learner", "password": "secret123"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = login(client, "learner", "newsecret123")
+    me = client.get("/api/auth/me", headers=auth(new_login["token"]))
+    assert me.status_code == 200
+    assert me.get_json()["user"]["nickname"] == "小明"
 
 
 def test_admin_permissions_and_user_management(client):
