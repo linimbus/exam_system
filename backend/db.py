@@ -25,10 +25,21 @@ def close_db(_error=None):
         db.close()
 
 
+def _migrate_schema(db):
+    columns = {
+        row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()
+    }
+    if "nickname" not in columns:
+        db.execute(
+            "ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''"
+        )
+
+
 def init_db():
     db = get_db()
     schema_path = Path(__file__).with_name("schema.sql")
     db.executescript(schema_path.read_text(encoding="utf-8"))
+    _migrate_schema(db)
     ensure_admin(
         db,
         current_app.config["ADMIN_USERNAME"],
