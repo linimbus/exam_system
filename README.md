@@ -29,6 +29,26 @@
 - Docker：提供前后端一体化单端口镜像、构建脚本和启动入口，支持 SQLite 数据卷持久化
 - MCP：提供 Streamable HTTP JSON-RPC 服务，支持管理员登录、查询科目与题库、新增/修改/删除科目和题目，并可通过题目接口调整所属科目
 
+## 样例
+
+演示网站：<http://www.lixiangyun.top:5001>
+
+### 登录页面
+
+![登录页面](doc/screenshot/mainpage.png)
+
+### 学习概览
+
+![学习概览](doc/screenshot/userpage.png)
+
+### 在线考试
+
+![在线考试](doc/screenshot/userexam.png)
+
+### 错题本
+
+![错题本](doc/screenshot/userbook.png)
+
 ## 技术结构
 
 ```text
@@ -68,7 +88,18 @@
 
 前端静态资源由 Flask 直接托管，浏览器访问的页面和 `/api/*` JSON 接口使用同一个端口，默认端口为 `5001`。
 
-## 快速开始
+
+## 镜像安装
+
+```bash
+  docker run -d --name exam-system \
+    -p 5001:5001 \
+    -e EXAM_SECRET_KEY='请替换为随机密钥' \
+    -v exam-system-data:/app/data \
+    linimbus/exam-system:latest
+```
+
+## 本地部署
 
 要求：Python 3.10+，无需 Node.js。
 
